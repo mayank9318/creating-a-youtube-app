@@ -1,0 +1,19 @@
+{
+  "editor.tokenColorCustomizations": {
+    "textMateRules": [
+      {
+        "scope": [
+          "comment",
+          "comment.line",
+          "comment.block",
+          "punctuation.definition.comment",
+          "comment.line.double-slash.js"
+        ],
+        "settings": {
+          "foreground": "#FFFFFF"
+        }
+      }
+    ]
+  },
+  "git.ignoreLimitWarning": true
+}
