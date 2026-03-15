@@ -12,12 +12,13 @@ import {upload} from "../middlewares/multer.middleware.js"
 
 
 const router = Router();
-router.use(verifyJWT); // Apply verifyJWT middleware to all routes in this file
+
+router.route("/").get(getAllVideos);
 
 router
     .route("/")
-    .get(getAllVideos)
     .post(
+        verifyJWT,
         upload.fields([
             {
                 name: "videoFile",
@@ -27,17 +28,17 @@ router
                 name: "thumbnail",
                 maxCount: 1,
             },
-            
         ]),
         publishAVideo
     );
 
+// IMPORTANT: This must come BEFORE /:videoId to avoid Express matching "toggle" as a videoId
+router.route("/toggle/publish/:videoId").patch(verifyJWT, togglePublishStatus);
+
 router
     .route("/:videoId")
     .get(getVideoById)
-    .delete(deleteVideo)
-    .patch(upload.single("thumbnail"), updateVideo);
-
-router.route("/toggle/publish/:videoId").patch(togglePublishStatus);
+    .delete(verifyJWT, deleteVideo)
+    .patch(verifyJWT, upload.single("thumbnail"), updateVideo);
 
 export default router

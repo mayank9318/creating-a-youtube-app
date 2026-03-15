@@ -5,7 +5,7 @@ import {uploadOnCloudinary} from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
-import { use } from "react";
+
 
 
 const generateAccessAndRefereshTokens = async(userId) =>{
@@ -428,7 +428,7 @@ const getUserChannelprofile = asyncHandler(async(req,res)=>{
         },
         {
             $lookup:{
-                from:" subscriptions",
+                from:"subscriptions",
                 localField:"_id",
                 foreignField:"channel",
                 as:"subscribers"
@@ -436,7 +436,7 @@ const getUserChannelprofile = asyncHandler(async(req,res)=>{
         },
         {
             $lookup:{
-                from:" subscriptions",
+                from:"subscriptions",
                 localField:"_id",
                 foreignField:"subscriber",
                 as:"subscribedTo"
@@ -493,7 +493,7 @@ const getUserWathcedHistory = asyncHandler(async(req,res)=>{
         },
     {
         $lookup:{
-            from:" videos",
+            from:"videos",
             localField:"watchHistory",
             foreignField:"_id",
             as:"watchedHistory",

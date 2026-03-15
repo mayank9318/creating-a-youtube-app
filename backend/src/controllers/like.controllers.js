@@ -69,17 +69,14 @@ const toggleCommentLike = asyncHandler(async (req, res) => {
        .status(200)
        .json(new ApiResponse(200,{isLiked:false},"comment unliked succesfully"))
     }
-  await Like.create(
-{
-    comment:commentId,
-    likedBy:req.user?._id
-}
-  )
+  await Like.create({
+    comment: commentId,
+    likedBy: req.user?._id
+  })
 
   return res
-  .status(200)
-  .json(new ApiResponse(200,"comment liked successfully  "))
-
+    .status(200)
+    .json(new ApiResponse(200, { isLiked: true }, "comment liked successfully"))
 })
 
 const toggleTweetLike = asyncHandler(async (req, res) => {

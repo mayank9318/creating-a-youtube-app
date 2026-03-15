@@ -1,5 +1,5 @@
-﻿import { useMemo, useState } from "react";
-import { Link, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { useMemo, useState, useEffect } from "react";
+import { Link, Route, Routes, useParams, useLocation, useNavigate } from "react-router-dom";
 import Navbar from "./components/common/Navbar";
 import Sidebar from "./components/common/Sidebar";
 import Footer from "./components/common/Footer";
@@ -18,6 +18,9 @@ import SubscribeButton from "./components/subscription/SubscribeButton";
 import StatsCard from "./components/dashboard/StatsCard";
 import DashboardVideoTable from "./components/dashboard/DashboardVideoTable";
 import { useAuthContext } from "./context/AuthContext";
+import { getAllVideos, getVideoById, publishVideo } from "./api/videoApi";
+import { getChannelStats, getChannelVideos } from "./api/dashboardApi";
+import { formatViews } from "./utils/helpers";
 import "./App.css";
 
 const sampleVideos = [
@@ -69,43 +72,122 @@ const samplePlaylist = {
 };
 
 function HomePage() {
+    const [videos, setVideos] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
+
+    useEffect(() => {
+        const fetchVideos = async () => {
+            try {
+                setLoading(true);
+                const res = await getAllVideos();
+                setVideos(res.data.data.videos || []);
+            } catch (err) {
+                setError("Failed to load videos");
+                console.error(err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchVideos();
+    }, []);
+
+    if (loading) return <div className="page-section"><p>Loading videos...</p></div>;
+    if (error) return <div className="page-section"><p className="form-error">{error}</p></div>;
+
     return (
         <section className="page-section">
             <h2>Home</h2>
-            <VideoGrid videos={sampleVideos} />
+            {videos.length > 0 ? (
+                <VideoGrid videos={videos} />
+            ) : (
+                <p>No videos found.</p>
+            )}
         </section>
     );
 }
 
 function VideoDetailPage() {
-    const [liked, setLiked] = useState(false);
-    const [likesCount, setLikesCount] = useState(14);
+    const { videoId } = useParams();
+    const [video, setVideo] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
 
-    const toggleLike = () => {
-        setLiked((prev) => !prev);
-        setLikesCount((prev) => (liked ? prev - 1 : prev + 1));
-    };
+    useEffect(() => {
+        const fetchVideo = async () => {
+            try {
+                setLoading(true);
+                const res = await getVideoById(videoId);
+                setVideo(res.data.data);
+            } catch (err) {
+                setError("Failed to load video");
+                console.error(err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchVideo();
+    }, [videoId]);
+
+    if (loading) return <div className="page-section"><p>Loading video...</p></div>;
+    if (error) return <div className="page-section"><p className="form-error">{error}</p></div>;
+    if (!video) return <div className="page-section"><p>Video not found.</p></div>;
 
     return (
         <section className="page-section">
-            <h2>Video Detail</h2>
+            <h2>{video.title}</h2>
             <VideoPlayer
-                src="https://www.w3schools.com/html/mov_bbb.mp4"
-                poster={sampleVideos[0].thumbnail}
-                title={sampleVideos[0].title}
+                src={video.videoFile}
+                poster={video.thumbnail}
+                title={video.title}
             />
-            <LikeButton isLiked={liked} likesCount={likesCount} onToggle={toggleLike} />
-            <CommentForm onSubmit={async () => {}} />
-            <CommentList comments={sampleComments} />
+            <div className="video-info">
+                <p>{video.views} views • {new Date(video.createdAt).toLocaleDateString()}</p>
+                <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+                    <LikeButton isLiked={video.isLiked} likesCount={video.likesCount} onToggle={() => {}} />
+                    {video.owner && (
+                         <div style={{ marginLeft: "auto" }}>
+                            <Link to={`/channel/${video.owner.username}`}>
+                                <strong>{video.owner.fullName}</strong>
+                            </Link>
+                         </div>
+                    )}
+                </div>
+                <hr style={{ borderColor: "var(--border)", margin: "1rem 0" }} />
+                <p>{video.description}</p>
+            </div>
+            
+            <CommentForm videoId={videoId} onSubmit={async () => {}} />
+            {/* CommentList should fetch real comments too, but for now we keep it simple */}
+            <CommentList videoId={videoId} />
         </section>
     );
 }
 
 function VideoUploadPage() {
+    const navigate = useNavigate();
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
+
+    const handleUpload = async (formData) => {
+        try {
+            setLoading(true);
+            setError("");
+            await publishVideo(formData);
+            navigate("/");
+        } catch (err) {
+            setError(err?.response?.data?.message || "Failed to upload video");
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <section className="page-section">
             <h2>Upload Video</h2>
-            <VideoUploadForm onSubmit={async () => {}} />
+            <VideoUploadForm onSubmit={handleUpload} loading={loading} />
+            {error && <p className="form-error" style={{ marginTop: "1rem" }}>{error}</p>}
         </section>
     );
 }
@@ -190,15 +272,44 @@ function SettingsPage() {
 }
 
 function DashboardPage() {
+    const [statsData, setStatsData] = useState({ totalViews: 0, totalSubscribers: 0, totalVideos: 0, totalLikes: 0 });
+    const [videos, setVideos] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
+
+    useEffect(() => {
+        const fetchDashboardData = async () => {
+            try {
+                setLoading(true);
+                const [statsRes, videosRes] = await Promise.all([
+                    getChannelStats(),
+                    getChannelVideos()
+                ]);
+                
+                setStatsData(statsRes.data.data);
+                setVideos(videosRes.data.data || []);
+            } catch (err) {
+                setError("Failed to load dashboard data");
+                console.error(err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchDashboardData();
+    }, []);
+
     const stats = useMemo(
         () => [
-            { label: "Total Views", value: "14.1K" },
-            { label: "Subscribers", value: "128" },
-            { label: "Videos", value: "2" },
-            { label: "Likes", value: "17" },
+            { label: "Total Views", value: formatViews(statsData.totalViews) },
+            { label: "Subscribers", value: statsData.totalSubscribers.toString() },
+            { label: "Videos", value: statsData.totalVideos.toString() },
+            { label: "Likes", value: statsData.totalLikes.toString() },
         ],
-        []
+        [statsData]
     );
+
+    if (loading) return <div className="page-section"><p>Loading dashboard...</p></div>;
+    if (error) return <div className="page-section"><p className="form-error">{error}</p></div>;
 
     return (
         <section className="page-section">
@@ -208,7 +319,7 @@ function DashboardPage() {
                     <StatsCard key={item.label} label={item.label} value={item.value} />
                 ))}
             </div>
-            <DashboardVideoTable videos={sampleVideos} />
+            <DashboardVideoTable videos={videos} />
         </section>
     );
 }
@@ -549,16 +660,11 @@ function App() {
 
     const sidebarItems = [
         { to: "/", label: "Home" },
-        { to: "/videos/1", label: "Video Detail" },
         { to: "/upload", label: "Video Upload" },
-        { to: "/channel/demo", label: "Channel" },
         { to: "/history", label: "Watch History" },
-        { to: "/playlist/1", label: "Playlist" },
-        { to: "/playlist/user/1", label: "User Playlists" },
-        { to: "/tweets/user/1", label: "Tweets" },
         { to: "/likes/videos", label: "Liked Videos" },
-        { to: "/settings", label: "Settings" },
         { to: "/dashboard", label: "Dashboard" },
+        { to: "/settings", label: "Settings" },
     ];
 
     return (

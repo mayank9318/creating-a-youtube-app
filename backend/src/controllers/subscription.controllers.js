@@ -7,36 +7,34 @@ import {asyncHandler} from "../utils/asyncHandler.js"
 
 
 const toggleSubscription = asyncHandler(async (req, res) => {
-    const {channelId} = req.params;
-    // TODO: toggle subscription
+    const { channelId } = req.params;
     const subscriber = req.user._id;
 
-    if(!isValidObjectId(channelId)){
-        throw new ApiError(400,"invalid channel ID")
+    if (!isValidObjectId(channelId)) {
+        throw new ApiError(400, "invalid channel ID")
     }
 
-    if(channelId.toString()=== subscriberId.toString()){
-        throw new ApiError (400, " you connot subsecribe to your own channel ")
+    if (channelId.toString() === subscriber.toString()) {
+        throw new ApiError(400, "you cannot subscribe to your own channel")
     }
 
-    const exstingSubscription = await Subscription.findOne({
-        subscriber:subscriberId,
-        channel :channelId,
+    const existingSubscription = await Subscription.findOne({
+        subscriber: subscriber,
+        channel: channelId,
     });
 
-    if(exstingSubscription){
-        await Subscription.findByIdAndDelete(exstingSubscription._id);
-      return req.status(200).json(
-        new ApiResponse(200,{subscribed:false},"unsubsribed successfully")
-      );
-
-    }else{
+    if (existingSubscription) {
+        await Subscription.findByIdAndDelete(existingSubscription._id);
+        return res.status(200).json(
+            new ApiResponse(200, { subscribed: false }, "unsubscribed successfully")
+        );
+    } else {
         await Subscription.create({
-            subscriber:subscriberId,
-            channel:channelId
+            subscriber: subscriber,
+            channel: channelId
         })
         return res.status(200).json(
-            new ApiResponse(200,{subscribed:true},"subscribed successfully")
+            new ApiResponse(200, { subscribed: true }, "subscribed successfully")
         )
     }
 })
